@@ -1,0 +1,79 @@
+from playwright.async_api import async_playwright, Browser, Page
+
+
+class LinkedInBrowser:
+    def __init__(self):
+        self._playwright = None
+        self._browser: Browser = None
+        self.page: Page = None
+
+    async def start(self, headless: bool = False):
+        """Launch the browser. headless=False so user can solve any verification challenges."""
+        self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(headless=headless)
+        context = await self._browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+        )
+        self.page = await context.new_page()
+
+    async def login(self, email: str, password: str) -> dict:
+        """Navigate to LinkedIn login page and sign in."""
+        if not self.page:
+            return {"success": False, "message": "Browser not started. Call start() first."}
+
+        await self.page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+
+        await self.page.fill("#username", email)
+        await self.page.fill("#password", password)
+        await self.page.click('[type="submit"]')
+
+        try:
+            await self.page.wait_for_url(
+                lambda url: "feed" in url or "checkpoint" in url or "challenge" in url or "login" in url,
+                timeout=15000,
+            )
+        except Exception:
+            pass
+
+        current_url = self.page.url
+
+        if "feed" in current_url or "mynetwork" in current_url:
+            return {"success": True, "message": "Logged in successfully."}
+
+        if "checkpoint" in current_url or "challenge" in current_url or "verification" in current_url:
+            return {
+                "success": False,
+                "needs_verification": True,
+                "message": (
+                    "LinkedIn requires identity verification. "
+                    "Please complete it in the browser window, then let me know when done."
+                ),
+            }
+
+        if "login" in current_url:
+            return {"success": False, "message": "Login failed. Please check your credentials."}
+
+        return {"success": False, "message": f"Unexpected state. Current URL: {current_url}"}
+
+    async def wait_for_manual_verification(self) -> dict:
+        """Wait until the user completes a LinkedIn verification challenge."""
+        try:
+            await self.page.wait_for_url(
+                lambda url: "feed" in url or "mynetwork" in url,
+                timeout=120000,  # 2 minutes for the user to verify
+            )
+            return {"success": True, "message": "Verification complete. Logged in successfully."}
+        except Exception:
+            return {"success": False, "message": "Verification timed out. Please try again."}
+
+    async def close(self):
+        if self._browser:
+            await self._browser.close()
+        if self._playwright:
+            await self._playwright.stop()
+        self.page = None
+        self._browser = None
+        self._playwright = None
