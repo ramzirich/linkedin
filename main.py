@@ -46,6 +46,20 @@ TOOLS = [
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "update_about_section",
+        "description": (
+            "Update the About/bio section on the user's LinkedIn profile with the new text. "
+            "Only call this after the user has explicitly confirmed the new bio."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "new_bio": {"type": "string", "description": "The new About/bio text to save on LinkedIn"},
+            },
+            "required": ["new_bio"],
+        },
+    },
 ]
 
 # ─── Tool execution ───────────────────────────────────────────────────────────
@@ -63,6 +77,10 @@ async def run_tool(tool_name: str, tool_input: dict) -> str:
 
     if tool_name == "get_profile_info":
         result = await browser.get_profile()
+        return json.dumps(result)
+
+    if tool_name == "update_about_section":
+        result = await browser.update_about(tool_input["new_bio"])
         return json.dumps(result)
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
@@ -96,9 +114,11 @@ Workflow:
    ---------------
 
    Then ask: "Should I apply this to your LinkedIn profile?"
-5. Wait for confirmation before proceeding to update (next step).
+5. Apply — once the user confirms, call update_about_section with the generated bio.
+   Report back whether it succeeded.
 
-Keep generated bios professional, human, and under 2600 characters (LinkedIn's limit).\
+Keep generated bios professional, human, and under 2600 characters (LinkedIn's limit).
+Never call update_about_section without explicit user confirmation.\
 """
 
 async def agent_loop():

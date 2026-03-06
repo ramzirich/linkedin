@@ -126,6 +126,64 @@ class LinkedInBrowser:
         profile["success"] = True
         return profile
 
+    async def update_about(self, new_bio: str) -> dict:
+        """Open the About edit modal on the user's profile and save the new bio."""
+        if not self.page:
+            return {"success": False, "message": "Browser not started."}
+
+        # Make sure we're on the profile page
+        if "/in/" not in self.page.url or "edit" in self.page.url:
+            await self.page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
+            await self.page.wait_for_selector("h1", timeout=10000)
+            await self.page.wait_for_timeout(2000)
+
+        # Click the edit pencil button in the About section
+        try:
+            about_edit_btn = self.page.locator("#about").locator("..").locator(
+                "a[aria-label*='Edit'], button[aria-label*='Edit']"
+            ).first
+            await about_edit_btn.click()
+        except Exception:
+            # Fallback: click the general profile intro edit button
+            try:
+                await self.page.locator("a[href*='edit/intro']").first.click()
+            except Exception as e:
+                return {"success": False, "message": f"Could not find the About edit button: {e}"}
+
+        # Wait for the edit modal to appear
+        try:
+            await self.page.wait_for_selector(".artdeco-modal", timeout=8000)
+        except Exception:
+            return {"success": False, "message": "Edit modal did not open."}
+
+        await self.page.wait_for_timeout(1000)
+
+        # Find the summary/about textarea inside the modal
+        try:
+            textarea = self.page.locator(".artdeco-modal textarea").first
+            await textarea.click()
+            # Select all and replace
+            await textarea.press("Control+a")
+            await textarea.fill(new_bio)
+        except Exception as e:
+            return {"success": False, "message": f"Could not fill the bio textarea: {e}"}
+
+        # Click the Save button
+        try:
+            save_btn = self.page.locator(".artdeco-modal button.artdeco-button--primary").last
+            await save_btn.click()
+        except Exception as e:
+            return {"success": False, "message": f"Could not click Save: {e}"}
+
+        # Wait for modal to close
+        try:
+            await self.page.wait_for_selector(".artdeco-modal", state="hidden", timeout=8000)
+        except Exception:
+            pass
+
+        await self.page.wait_for_timeout(1500)
+        return {"success": True, "message": "About section updated successfully."}
+
     async def close(self):
         if self._browser:
             await self._browser.close()
