@@ -38,6 +38,14 @@ TOOLS = [
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "get_profile_info",
+        "description": (
+            "Navigate to the user's LinkedIn profile and scrape their name, headline, "
+            "location, and about/bio section. Call this after a successful login."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 # ─── Tool execution ───────────────────────────────────────────────────────────
@@ -51,6 +59,10 @@ async def run_tool(tool_name: str, tool_input: dict) -> str:
 
     if tool_name == "wait_for_verification":
         result = await browser.wait_for_manual_verification()
+        return json.dumps(result)
+
+    if tool_name == "get_profile_info":
+        result = await browser.get_profile()
         return json.dumps(result)
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
@@ -69,8 +81,13 @@ Guidelines:
   and then call wait_for_verification.
 - Keep the user informed of what you are doing at each step.
 
-Current capabilities: login to LinkedIn.
-More capabilities (scrape profile, update description) will be added in future steps.\
+Current capabilities:
+- Login to LinkedIn
+- Scrape the user's profile (name, headline, location, about/bio)
+
+After a successful login, proactively offer to fetch the profile info.
+When profile info is retrieved, summarize it clearly for the user.
+More capabilities (update description) will be added in future steps.\
 """
 
 async def agent_loop():

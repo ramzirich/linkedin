@@ -69,6 +69,63 @@ class LinkedInBrowser:
         except Exception:
             return {"success": False, "message": "Verification timed out. Please try again."}
 
+    async def get_profile(self) -> dict:
+        """Navigate to the user's own profile and scrape key info."""
+        if not self.page:
+            return {"success": False, "message": "Browser not started."}
+
+        await self.page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
+
+        # Wait for the main profile content to load
+        try:
+            await self.page.wait_for_selector("h1", timeout=10000)
+        except Exception:
+            return {"success": False, "message": "Profile page did not load in time."}
+
+        # Give dynamic sections a moment to render
+        await self.page.wait_for_timeout(2000)
+
+        profile = {}
+
+        # Name
+        try:
+            profile["name"] = await self.page.locator("h1").first.inner_text()
+        except Exception:
+            profile["name"] = None
+
+        # Headline
+        try:
+            profile["headline"] = await self.page.locator(
+                ".text-body-medium.break-words"
+            ).first.inner_text()
+        except Exception:
+            profile["headline"] = None
+
+        # Location
+        try:
+            profile["location"] = await self.page.locator(
+                ".text-body-small.inline.t-black--light.break-words"
+            ).first.inner_text()
+        except Exception:
+            profile["location"] = None
+
+        # About / bio
+        try:
+            about_section = self.page.locator("#about").locator("..")
+            profile["about"] = await about_section.locator(
+                "span[aria-hidden='true']"
+            ).first.inner_text()
+        except Exception:
+            profile["about"] = None
+
+        # Clean up whitespace
+        for key in profile:
+            if isinstance(profile[key], str):
+                profile[key] = profile[key].strip()
+
+        profile["success"] = True
+        return profile
+
     async def close(self):
         if self._browser:
             await self._browser.close()
